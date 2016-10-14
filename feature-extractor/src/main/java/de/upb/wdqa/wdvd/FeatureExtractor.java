@@ -17,6 +17,8 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.jar.Manifest;
 
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
+import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.utils.IOUtils;
 import org.apache.log4j.Appender;
@@ -220,8 +222,7 @@ public class FeatureExtractor {
 	//		dumpFileProcessor.processDumpFileContents(dumpFile.getDumpFileStream(), dumpFile);
 			
 			// one thread retrieves the data and the other thread decompresses it.
-			InputStream uncompressedStream = getUncompressedStream((getPipedDumpFileStream(getCompressedDumpFileStream(config.getRevisionFile()))));
-			
+			InputStream uncompressedStream = getUncompressedStream7z(config.getRevisionFile());
 			dumpFileProcessor.processDumpFileContents(uncompressedStream);
 			
 			uncompressedStream.close();			
@@ -285,7 +286,47 @@ public class FeatureExtractor {
 		
 		return pipedInputStream;
 	}
-	
+
+    /**
+     * Decompresses the 7z file
+     * See: http://stackoverflow.com/questions/21986689/how-to-read-contents-for-file-which-is-in-7z-extension-file
+     */
+	private static InputStream getUncompressedStream7z(File file) throws IOException{
+		// the decompression is a major bottleneck, make sure that it does not have to wait for the buffer to empty
+		final PipedOutputStream pipedOutputStream = new PipedOutputStream();
+		final PipedInputStream pipedInputStream = new PipedInputStream(pipedOutputStream, BUFFER_SIZE);
+		SevenZFile archiveFile = new SevenZFile(file);
+
+		new Thread("Dump File Decompressor"){
+			@Override
+			public void run(){
+
+				try {
+					SevenZArchiveEntry entry;
+					while((entry = archiveFile.getNextEntry()) != null) {
+						String name = entry.getName();
+						if(entry.isDirectory()) {
+                            logger.info("Unzip escape directory");
+                        } else {
+							// Read file content with small buffer
+							logger.info(String.format("Unzip file %s ...", name));
+							byte[] buffer = new byte[2048];
+							int bytesRead;
+							while((bytesRead = archiveFile.read(buffer)) != -1) {
+								pipedOutputStream.write(buffer, 0, bytesRead);
+							}
+						}
+					}
+					pipedOutputStream.close();
+					archiveFile.close();
+				} catch (IOException e) {
+                    logger.error("", e);
+				}
+			}
+		}.start();
+		return pipedInputStream;
+	}
+
 	private static void initLogger(String filename){
 		final String PATTERN = "[%d{yyyy-MM-dd HH:mm:ss}] [%-5p] [%c{1}] %m%n";
 		

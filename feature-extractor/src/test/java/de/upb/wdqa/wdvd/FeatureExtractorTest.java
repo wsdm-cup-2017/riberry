@@ -21,8 +21,8 @@ public class FeatureExtractorTest {
 			String[] args = new String[2];
 			
 			tmpDirectory = Files.createTempDirectory("WDVD").toFile();
-			
-			args[0] = "src/test/resources/SmokeTest.xml.bz2";
+
+			args[0] = "src/test/resources/SmokeTest.xml.7z";
 			args[1] = new File(tmpDirectory, "features.csv.bz2").toString();
 			
 			int result = FeatureExtractor.main2(args);

@@ -3,6 +3,9 @@ The Riberry Vandalism Detector
 Vandalism Detection [Task Description](http://www.wsdm-cup-2017.org/vandalism-detection.html)
  - Server Code https://github.com/wsdm-cup-2017/wsdmcup17-data-server
  - Java Demo https://github.com/wsdm-cup-2017/wsdmcup17-demo-java
+ 
+## Midpoint Report 
+Latex https://www.overleaf.com/6697439jbqvdt
 
 ## Reference github
 Feature Extraction

@@ -9,7 +9,7 @@ import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
-import ml.dmlc.xgboost4j.java.example.util.DataLoader;
+//import ml.dmlc.xgboost4j.java.example.util.DataLoader;
 
 
 public class Classifier {

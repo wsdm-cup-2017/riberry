@@ -73,6 +73,13 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		// This is where an actual classification based on  the revision and
 		// its associated metadata should happen. Instead, we just assign a
 		// score of 0.0, effectively classifying the revision as non-vandalism.
+		System.out.println(revision.getContributor());
+		System.out.println(revision.getComment());
+		System.out.println(revision.getRevisionId());
+		System.out.println(revision.getText());
+		System.out.println(revision.getTimeStamp());
+		System.out.println(revision.getModel());
+		System.out.println(metadata.toString());
 		return 0.0f;
 	}
 

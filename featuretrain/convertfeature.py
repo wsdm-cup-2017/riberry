@@ -21,7 +21,7 @@ flist = ['_2012_10','_2012_11','_2013_01','_2013_03','_2013_05','_2013_07','_201
 
 #ord('a'):97
 #chr(97):'a'
-convfilenum = 3
+convfilenum = 2
 convrownum = -1
 
 def conv(st):
@@ -53,8 +53,10 @@ def convert2svm():
 
 				crow = ' '
 				cnti=0
-				for item in row:
+				for item in row: # 
 					cnti+=1
+					if cnti in [1,8,11,12]: # these index feature discard. 
+						continue
 					if cnti==len(row): # libsvm format label first. 
 						crow=row[cnti-1]+crow
 					else:

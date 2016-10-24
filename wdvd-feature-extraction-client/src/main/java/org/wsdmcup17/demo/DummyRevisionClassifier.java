@@ -26,6 +26,8 @@ import ml.dmlc.xgboost4j.java.XGBoostError;
  * revision.
  */
 public class DummyRevisionClassifier implements MwRevisionProcessor {
+	
+	public static final String MODELPATH = "/home/yiran/wsdm/riberry/wsdm-classify/model/xgb.model";
 
 	private static final Logger
 		LOG = LoggerFactory.getLogger(DummyRevisionClassifier.class);
@@ -55,7 +57,7 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		this.resultPrinter = resultPrinter;
 		this.metadataQueue = metaQueue;
 		try {
-			booster2 = XGBoost.loadModel("./model/xgb.model");
+			booster2 = XGBoost.loadModel(MODELPATH);
 			System.out.println("model loaded ! ");
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -90,7 +92,7 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		// This is where an actual classification based on  the revision and
 		// its associated metadata should happen. Instead, we just assign a
 		// score of 0.0, effectively classifying the revision as non-vandalism.
-		final int startpos = 13; // start from 13th feature
+		final int startpos = 0; // start from 13th feature
 		
 		FeatureExtractor extractor=new FeatureExtractor(revision);
 		String extractedrecord=extractor.extractedrecord;
@@ -99,14 +101,6 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		String[] parts = extractedrecord2.split("~");
 		String featsvm = "0 ";
 		int flen = parts.length-startpos;
-		if (flen>106) {
-			System.out.println(" ! ! ! this revision contains comma !!! please get rid of ',' in feature ! ! !");
-			System.out.println(revision.getRevisionId());
-			System.out.println(featsvm);
-			System.out.println(extractedrecord);
-			System.out.println("--------");
-			return 0.0f;
-		}
 		
 		float[] featfloat = new float[flen];
 		
@@ -142,7 +136,11 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 					}
 				}
 				featsvm = featsvm+" ";
-				featfloat[i-startpos]=Float.parseFloat(tmpf);
+				try{
+					featfloat[i-startpos]=Float.parseFloat(tmpf);
+				}catch(NumberFormatException ee2){
+					featfloat[i-startpos]=0;
+				}
 			}
 		}
 //		System.out.println(featsvm);
@@ -173,7 +171,7 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 			System.out.println(revision.getRevisionId());
 			System.out.println(featsvm);
 			System.out.println(extractedrecord);
-			System.out.println("--------");
+			System.out.println("----vandalism !----");
 		}
 		return score;
 	}

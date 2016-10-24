@@ -13,7 +13,8 @@ import ml.dmlc.xgboost4j.java.XGBoostError;
 
 
 public class Classifier {
-	public static String BASEDIR_DATA = "../featuretrain/";
+	public static String BASEDIR_DATA = "/home/yiran/wsdm/featuretrain/";
+//	public static String BASEDIR_DATA = "../featuretrain/";
 
 	public static float checkPredicts(float[][] fPredicts, float[][] sPredicts) {
 		//System.out.println(fPredicts.length); // # rows
@@ -81,12 +82,13 @@ public class Classifier {
 		booster.saveModel(modelPath);
 
 		// save dmatrix into binary buffer
-		testMat.saveBinary("./model/dtest.buffer");
+		//testMat.saveBinary("./model/dtest.buffer");
 
 		// reload model and data
 		Booster booster2 = XGBoost.loadModel("./model/xgb.model");
-		DMatrix testMat2 = new DMatrix("./model/dtest.buffer");
-		float[][] predicts2 = booster2.predict(testMat2);
+		//DMatrix testMat2 = new DMatrix("./model/dtest.buffer");
+		
+		float[][] predicts2 = booster2.predict(testMat);
 
 		// check the two predicts
 		System.out.println(getAccuracy(truth, predicts2));

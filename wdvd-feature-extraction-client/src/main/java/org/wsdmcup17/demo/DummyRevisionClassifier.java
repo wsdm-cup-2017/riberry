@@ -100,7 +100,7 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		String featsvm = "0 ";
 		int flen = parts.length-startpos;
 		if (flen>106) {
-			System.out.println(" ! ! ! this revision contains comma !!! please get rid of , in feature ! ! !");
+			System.out.println(" ! ! ! this revision contains comma !!! please get rid of ',' in feature ! ! !");
 			System.out.println(revision.getRevisionId());
 			System.out.println(featsvm);
 			System.out.println(extractedrecord);

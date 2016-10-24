@@ -85,7 +85,7 @@ public class CsvFeatureWriter implements RevisionProcessor{
 					writeString = featureValue.toString();
 				}
 				
-				record.add(writeString);
+				record.add(writeString.replaceAll(",", ""));
 			}			
 
 			csvPrinter.printRecord(record);

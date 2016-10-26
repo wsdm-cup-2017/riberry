@@ -28,6 +28,7 @@ import ml.dmlc.xgboost4j.java.XGBoostError;
 public class DummyRevisionClassifier implements MwRevisionProcessor {
 	
 	public static final String MODELPATH = "/home/yiran/wsdm/riberry/wsdm-classify/model/xgb.model";
+	public static final float MISSING = -100.0f;
 
 	private static final Logger
 		LOG = LoggerFactory.getLogger(DummyRevisionClassifier.class);
@@ -100,17 +101,21 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		String extractedrecord2= extractedrecord.replaceAll("\\[", "").replaceAll("\\]","").replaceAll(", ", "~");
 		String[] parts = extractedrecord2.split("~");
 		String featsvm = "0 ";
-		int flen = parts.length-startpos;
+		int flen = parts.length;
+		assert(flen==119);
 		
 		float[] featfloat = new float[flen];
 		
 		for(int i = startpos; i<parts.length; i++){
+			if(i==0||i==7||i==10||i==11){
+				featfloat[i]=MISSING; // didn't use this feature
+				continue;
+			}
 			String f = parts[i];
-			featsvm = featsvm+ (i-startpos+1) +":";
+			featsvm = featsvm+ (i+1) +":";
 			try
 			{
-			  Double.parseDouble(f);
-			  featfloat[i-startpos]=Float.parseFloat(f);
+			  featfloat[i]=Float.parseFloat(f);
 			  featsvm = featsvm+f+" ";
 			}
 			catch(NumberFormatException e)
@@ -136,22 +141,28 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 					}
 				}
 				featsvm = featsvm+" ";
+				if (tmpf.length()>38) {
+					tmpf=tmpf.substring(0, 38);
+				}
 				try{
-					featfloat[i-startpos]=Float.parseFloat(tmpf);
+					featfloat[i]=Float.parseFloat(tmpf);
 				}catch(NumberFormatException ee2){
-					featfloat[i-startpos]=0;
+					featfloat[i]=0;
 				}
 			}
 		}
 //		System.out.println(featsvm);
 		float score = 0;
+//		for(int i =0; i<featfloat.length; i++){
+//			System.out.print(featfloat[i]+" ");
+//		}System.out.println("-----");
 
 		// reload model and data
 //		Booster booster2;
 		try {
 //			booster2 = XGBoost.loadModel("./model/xgb.model");
 //			DMatrix testMat2 = new DMatrix("./model/dtest.buffer");
-			DMatrix testMat2 = new DMatrix(featfloat, 1, flen, 0);
+			DMatrix testMat2 = new DMatrix(featfloat, 1, flen, MISSING);
 			
 			if (booster2 != null) {
 				float[][] predicts2 = booster2.predict(testMat2);
@@ -165,13 +176,22 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		}
 		
 		if (score<=0.5) {
-			score=0.0f;
+			//score=0.0f;
+//			System.out.println(featfloat[0]);
+//			System.out.println(featfloat[1]);
+//			System.out.println(featfloat[4]);
+//			System.out.println(featfloat[5]);
+//			System.out.println(featfloat[117]);
+//			System.out.println(featfloat[118]);			
+//			System.out.println("------");
+
 		}else{
-			score=1.0f;
+			System.out.println("----vandalism !----"+score);
 			System.out.println(revision.getRevisionId());
 			System.out.println(featsvm);
 			System.out.println(extractedrecord);
-			System.out.println("----vandalism !----");
+			System.out.println("--------");
+			score=1.0f;
 		}
 		return score;
 	}

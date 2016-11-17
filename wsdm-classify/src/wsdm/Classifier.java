@@ -23,13 +23,20 @@ import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
+import scala.reflect.internal.Trees.New;
 //import ml.dmlc.xgboost4j.java.example.util.DataLoader;
 
 
 public class Classifier {
+	public static String My_IP;
 	public static final float MISSING = -100.0f;
 	public static int NumFeature ;//= 119; // num of features, not include label
-	public static String My_IP;
+	public static ArrayList<Integer> SkipFeatPos = new ArrayList<>(); // skip these features 1-119.
+	static{
+		SkipFeatPos.add(1);
+	}
+	public static int[] trainfset;
+	public static int[] testfset;
 	
 	public static final String BASEDIR_DATA_home = "/home/yiran/wsdm/featuretrain/";
 	public static final String BASEDIR_DATA_lab = "./";
@@ -51,8 +58,11 @@ public class Classifier {
 				}
 				String st[] = line.trim().split(" ");
 				if (st.length == NumFeature + 1) {
-					int k = 0;
-					for (k = 1; k <= NumFeature; k++) {
+					for (int k = 1; k <= NumFeature; k++) {
+						if (SkipFeatPos.contains(k)) {
+							data[k - 1 + NumFeature * lpos] = MISSING;
+							continue;
+						}
 						try {
 							float tmp = Float.parseFloat(st[k]);
 							if (tmp>-Float.MAX_VALUE && tmp<Float.MAX_VALUE) {
@@ -67,10 +77,11 @@ public class Classifier {
 					}
 					label[lpos] = Float.parseFloat(st[0]);
 				} else {
-					System.out.println(filename + ": invalid line at lpos=" + lpos+"\n\n"+line);
+					System.out.println(filename + ": invalid line at lpos=" + lpos+"\n\n"+line+"\n");
 					for (int k = 1; k <= NumFeature; k++) {
 						data[k - 1 + NumFeature * lpos] = data[k -1-NumFeature + NumFeature * lpos]; // copy last record 
 					}
+					label[lpos] = label[lpos-1];
 				}
 				lpos++;
 			}
@@ -81,45 +92,6 @@ public class Classifier {
 		}
 	    System.out.println("Move offset to "+lpos);
 	    return lpos;
-	}
-	
-	/**
-	 * Read array records from file, store in 1D float[], 1st elem in each record is label.
-	 */
-	public static void readDataAsFloat(String filename, float[] data, float[] label){
-		String line;
-		int lpos = 0;
-		try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
-			while ((line = br.readLine()) != null) {
-				String st[] = line.trim().split(" ");
-				if (st.length == NumFeature + 1) {
-					int k = 0;
-					for (k = 1; k <= NumFeature; k++) {
-						try {
-							float tmp = Float.parseFloat(st[k]);
-							if (tmp>Float.MIN_VALUE && tmp<Float.MAX_VALUE) {
-								data[k - 1 + NumFeature * lpos] = tmp;
-							}else{
-								data[k - 1 + NumFeature * lpos] = MISSING;
-								System.out.println("! Missing: "+tmp+" at row "+(1+lpos));
-							}
-							
-						} catch (Exception e) {
-							data[k - 1 + NumFeature * lpos] = MISSING;
-						}
-					}
-					label[lpos++] = Float.parseFloat(st[0]);
-				} else {
-					System.out.println(filename + ": invalid col num at lpos=" + lpos);
-					break;
-				}
-			}
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	    System.out.println("readfloat() stat: lpos="+lpos);
 	}
 	
 	/**
@@ -220,9 +192,30 @@ public class Classifier {
 
 	public static void trainClassifier() throws Exception {
 		System.out.println("We have "+flist.length+" files + 1 vandalized");
-		int trainf [] = {0,1};
-		int testf [] =  {1,2};
+		System.out.println("Skip features (1-119): "+SkipFeatPos.toString());
 		
+		int trainf [];
+		if (trainfset==null || trainfset.length==0) {
+		   int tmp[] = {0,2,4,6,8};
+		   trainf = tmp;
+		}else{
+			trainf= trainfset;
+		}
+		for (int i = 0; i < trainf.length; i++) {
+			System.out.println("Train files "+flist[trainf[i]]);
+		}
+		
+		int testf []; 
+		if (testfset==null || testfset.length==0) {
+			int tmp[] = { 1,3,5,7 };
+			testf = tmp;
+		} else {
+			testf = testfset;
+		}
+		for (int i = 0; i < testf.length; i++) {
+			System.out.println("Test files "+flist[testf[i]]);
+		}
+
 		int trainsp[] = aggregateShape(trainf);
 		int trainrow=trainsp[0];
 		NumFeature=trainsp[1]  -1   ;  // no label -1
@@ -327,6 +320,8 @@ public class Classifier {
 	}
 
 	public static void main(String[] args) throws Exception {
+		System.out.println("args:   "+args[0]+"    "+args[1]);
+		
 		try {
 	        Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
 	        while (interfaces.hasMoreElements()) {
@@ -353,6 +348,20 @@ public class Classifier {
 		}else {
 			System.out.println("Wrong IP, exit...");
 			return;
+		}
+		
+		if (args.length>=2) {
+			System.out.println("Train: "+args[0]+"     Test: "+args[1]);
+			String trainst[] = args[0].split(",");
+			String testst[] = args[1].split(",");
+			trainfset = new int[trainst.length];
+			testfset = new int[testst.length];
+			for (int i = 0; i < trainfset.length; i++) {
+				trainfset[i]=Integer.parseInt(trainst[i]);
+			}
+			for (int i = 0; i < testfset.length; i++) {
+				testfset[i]=Integer.parseInt(testst[i]);
+			}
 		}
 		
 		trainClassifier();

@@ -206,9 +206,9 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		String extractedrecord3= extractedrecord.replaceAll("\\[", "").replaceAll("\\]","").replaceAll(", ", ",");
 		//System.out.println(extractedrecord2);
 		float RFreuslt=RFclassifier.getEvaluation(extractedrecord3);
-		float RFbinartresult=0;
+		float RFbinaryresult=0;
 		if(RFreuslt>0.5){
-			RFbinartresult=1;
+			RFbinaryresult=1;
 		}
 		//System.out.println("reuslt="+RFreuslt);
 		//RFbinartresult is the output

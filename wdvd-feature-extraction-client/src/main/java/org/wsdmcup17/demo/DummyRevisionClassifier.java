@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.wikidata.wdtk.dumpfiles.MwRevision;
 import org.wikidata.wdtk.dumpfiles.MwRevisionProcessor;
 
+import com.rf.categ.RandomForestTest;
+
 import de.upb.wdqa.wdvd.FeatureExtractor;
 
 import ml.dmlc.xgboost4j.java.Booster;
@@ -50,7 +52,9 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 	private long lastLogTime;
 	private int numRevisions;
 	private int numRevisionsFromRegisteredUsers;
-	
+	////////////////add by tuoyu start
+	private RandomForestTest RFclassifier;
+	///////////////end
 
 	public DummyRevisionClassifier(
 		BlockingQueue<CSVRecord> metaQueue, CSVPrinter resultPrinter
@@ -64,6 +68,9 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 			e.printStackTrace();
 			System.out.println("model fail \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ! ");
 		}
+		////////////////add by tuoyu start
+		RFclassifier=new RandomForestTest();
+		////////////////end
 	}
 
 	@Override
@@ -193,6 +200,21 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 			System.out.println("--------");
 			score=1.0f;
 		}
+		
+		
+		////////////////add by tuoyu start
+		String extractedrecord3= extractedrecord.replaceAll("\\[", "").replaceAll("\\]","").replaceAll(", ", ",");
+		//System.out.println(extractedrecord2);
+		float RFreuslt=RFclassifier.getEvaluation(extractedrecord3);
+		float RFbinartresult=0;
+		if(RFreuslt>0.5){
+			RFbinartresult=1;
+		}
+		//System.out.println("reuslt="+RFreuslt);
+		//RFbinartresult is the output
+		/////////// end
+			
+		
 		return score;
 	}
 

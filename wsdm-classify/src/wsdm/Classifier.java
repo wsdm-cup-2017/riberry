@@ -35,7 +35,8 @@ public class Classifier {
 	public static int NumFeature ;// num of features, not include label
 	public static ArrayList<Integer> SkipFeatPos = new ArrayList<>(); // skip these features 1-119.
 	static{
-		SkipFeatPos.add(1);
+		SkipFeatPos.add(1); // id
+		SkipFeatPos.add(118); // ori label
 	}
 	public static int[] trainfset;
 	public static int[] testfset;
@@ -50,6 +51,13 @@ public class Classifier {
 	
 	public static final String SplitFile = "./data_%d/ExtactedFeatures_array.txt";
 	public static final String SplitVandFile = "./vandalized_array%d.txt";
+	
+	private static float reduceFloat(float f){
+		while(f>=10f || f<=-10f){
+			f/=10.0f;
+		}
+		return f;
+	}
 	
 	/**
 	 * Aggregate array records from file, store in 1D float[] at offset.
@@ -72,10 +80,9 @@ public class Classifier {
 						try {
 							float tmp = Float.parseFloat(st[k]);
 							if (tmp>-Float.MAX_VALUE && tmp<Float.MAX_VALUE) {
-								data[k - 1 + NumFeature * lpos] = tmp;
+								data[k - 1 + NumFeature * lpos] = tmp ; //reduceFloat(tmp);
 							}else{
 								data[k - 1 + NumFeature * lpos] = MISSING;
-								//System.out.println("! Missing: "+tmp+" at row "+(1+lpos));
 							}
 						} catch (Exception e) {
 							data[k - 1 + NumFeature * lpos] = MISSING;
@@ -404,10 +411,10 @@ public class Classifier {
 		params.put("objective", "binary:logistic");
 		params.put("eval_metric","auc");
 		params.put("tree_method", "approx");
-		params.put("seed", 1);
+		params.put("seed", 2);
 		
 		// set round
-		int round = 5;
+		int round = 4;
 		int kSplit = 70;
 		int ifbreak = 0;
 		final String outfile = "./ressql.txt";
@@ -417,7 +424,9 @@ public class Classifier {
 		} catch (Exception e) {
 		}
 		
-		for (int fi = 0; fi < kSplit; fi++) {
+		for (int fi = 11; fi < kSplit; fi++) {
+			params.put("seed", fi);
+			
 			String trainf[] = { String.format(SplitFile, fi),
 					String.format(SplitVandFile, 1),
 					String.format(SplitVandFile, 2),
@@ -430,6 +439,7 @@ public class Classifier {
 			
 			int tfi = (fi+1)%kSplit;
 			String testf[] = { String.format(SplitFile, tfi),
+					String.format(SplitVandFile, 4),
 					String.format(SplitVandFile, 5) 
 					};
 			int testsp[] = aggregateShape(testf); 
@@ -461,24 +471,24 @@ public class Classifier {
 			watches.put("train", trainMat);
 			watches.put("test", testMat);
 			
-			for(float eta = 0.2f; eta <=0.6f; eta+=0.1f){
+			for(float eta = 0.552f; eta <=0.5521f; eta+=0.001f){
 				params.put("eta", eta);
-				for(int depth = 4; depth <=9; depth++ ){
+				for(int depth = 23; depth <=23; depth+=1 ){
 					params.put("max_depth", depth);
-					for(float  gamma= 0f;  gamma<=0.3f; gamma+=0.1f){
+					for(float  gamma= 0.0342f;  gamma<=0.03421f; gamma+=0.0001f){
 						params.put("gamma", gamma);
-						for(float  subsample= 1f; subsample >= 0.7f; subsample-=0.1f){
+						for(float  subsample= 0.9738f; subsample <= 0.97381f; subsample +=0.0001f){
 							params.put("subsample", subsample);
-							for(float step = 0f;  step<=0.1f; step+=0.05f){
+							for(float step = 0f;  step<=0f; step+=0.05f){
 								params.put("max_delta_step", step);
-								for(float  scale= 0.1f;  scale<= 1f; scale +=0.2f){
+								for(float  scale= 0.321f;  scale<= 0.3211f; scale +=0.001f){
 									params.put("scale_pos_weight",scale);
-									for(float  child= 0.4f; child <= 1f; child +=0.2f){
+									for(float  child= 0.8807f; child <= 0.8807f; child +=0.0001f){
 										params.put("min_child_weight", child);
-										for(float  colsample= 0.6f; colsample <=1f; colsample+=0.1f){
+										for(float  colsample= 0.95f; colsample <=0.95f; colsample+=0.001f){
 											params.put("colsample_bytree", colsample);
 											
-											System.out.println(params);
+											System.out.println(fi+params.toString());
 
 											Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
@@ -487,10 +497,10 @@ public class Classifier {
 											float acc = getAccuracy(testMat.getLabel(), predicts2);
 											System.out.println("Accuracy: "+acc+"\n----------------------------");
 											
-											writer.println(String.format("%d,%.2f,%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.6f", 
+											writer.println(String.format("INSERT INTO wsdm ( fid,eta,max_depth,gamma,subsample,max_delta_step,scale_pos_weight,min_child_weight,colsample_bytree,accuracy ) VALUES ( %d,%.4f,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.6f );", 
 													fi,eta,depth,gamma,subsample,step,scale,child,colsample,acc));
 											
-											
+											writer.flush();
 											
 											if(ifbreak==1) break;
 										}

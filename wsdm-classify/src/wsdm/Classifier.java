@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Random;
 import java.util.Scanner;
 
 import ml.dmlc.xgboost4j.java.Booster;
@@ -32,11 +33,27 @@ import scala.reflect.internal.Trees.New;
 public class Classifier {
 	public static String My_IP;
 	public static final float MISSING = -100.0f;
+	public static final int expandTo = 1; // expend vandal to 10 times its ori size 
+	
 	public static int NumFeature ;// num of features, not include label
 	public static ArrayList<Integer> SkipFeatPos = new ArrayList<>(); // skip these features 1-119.
 	static{
-		SkipFeatPos.add(1); // id
+		SkipFeatPos.add(1); //r id
 		SkipFeatPos.add(118); // ori label
+	}
+	public static ArrayList<Integer> MissFeatPos = new ArrayList<>(); // miss these features 1-119.
+	static{
+		MissFeatPos.add(2); // u id
+		MissFeatPos.add(4); // g id
+	}
+	public static ArrayList<Integer> perturbFeatPos = new ArrayList<>(); // change these features 1-119.
+	static{
+		perturbFeatPos.add(3); // 
+		perturbFeatPos.add(5); // 
+		perturbFeatPos.add(39); // 
+		perturbFeatPos.add(40); // 
+		perturbFeatPos.add(44); // 
+		perturbFeatPos.add(46); // 
 	}
 	public static int[] trainfset;
 	public static int[] testfset;
@@ -50,21 +67,20 @@ public class Classifier {
 	public static final String VandalizedFile = "vandalized_array.txt";
 	
 	public static final String SplitFile = "./data_%d/ExtactedFeatures_array.txt";
-	public static final String SplitVandFile = "./vandalized_array%d.txt";
+	public static final String Split6File = "./data_100%d/ExtactedFeatures_array.txt";
+	public static final String SplitVandFile = "./vandalized_array%d.txt"; //vandalized_array.txt
+	public static final String VandFile = "./vandalized_array.txt"; //vandalized_array.txt
 	
-	private static float reduceFloat(float f){
-		while(f>=10f || f<=-10f){
-			f/=10.0f;
-		}
-		return f;
-	}
+	public static final String ModelPath = "./model/xgb%d.model";
 	
 	/**
 	 * Aggregate array records from file, store in 1D float[] at offset.
 	 */
-	public static int aggregateDataAsFloat(String filename, float[] data, float[] label, int rowOffset){
+	public static int aggregateDataAsFloat(String filename, float[] data, float[] label, int rowOffset, int expand){
 		String line;
 		int lpos = rowOffset;
+		Random rand = new Random();
+		
 		try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
 			while ((line = br.readLine()) != null) {
 				if ("".equals(line.trim())) { // consistent with getShape, otherwise vec len not match ! 
@@ -97,14 +113,42 @@ public class Classifier {
 					label[lpos] = label[lpos-1];
 				}
 				lpos++;
+				///////  add more  vandal
+				if (expand>0 && label[lpos-1]>0.5) {
+					for(int r=0;r<expandTo-1;r++){
+						for (int k = 1; k <= NumFeature; k++) {
+							if (MissFeatPos.contains(k) && rand.nextFloat()<0.4) {
+								data[k - 1 + NumFeature * lpos] = MISSING;
+								continue;
+							}
+							if (perturbFeatPos.contains(k) && rand.nextFloat()<0.4) {
+								float ori = data[k -1-NumFeature + NumFeature * lpos];
+								if (ori<=1.0) {
+									ori *= 1+(rand.nextFloat()-0.5)/1000.0 ;
+								}else{
+									ori *= 1+(rand.nextFloat()-0.5)/1000000.0 ;
+								}
+								data[k - 1 + NumFeature * lpos] = ori;
+								continue;
+							}
+							data[k - 1 + NumFeature * lpos] = data[k -1-NumFeature + NumFeature * lpos]; // copy last record 
+						}
+						
+						label[lpos] = label[lpos-1];
+						lpos++;
+					}
+				}
+				
 			}
+			
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 //	    System.out.println("Move offset to "+lpos);
-	    return lpos;
+	    
+		return lpos;
 	}
 	
 	/**
@@ -331,17 +375,17 @@ public class Classifier {
 		int offset = 0;
 		for (int i = 0; i < trainf.length; i++) {
 			String filename = BASEDIR_DATA + String.format(DataFormat, flist[trainf[i]]);
-			offset = aggregateDataAsFloat(filename, traindata, trainlabel, offset);
+//			offset = aggregateDataAsFloat(filename, traindata, trainlabel, offset);
 //			System.out.println(filename+" -> "+offset);
 		}
-		offset = aggregateDataAsFloat(vanfile, traindata, trainlabel, offset);
+//		offset = aggregateDataAsFloat(vanfile, traindata, trainlabel, offset);
 //		System.out.println(vanfile+" -> "+offset);
 		
 //		System.out.println("-----  test data  ------");
 		offset=0;
 		for (int i = 0; i < testf.length; i++) {
 			String filename = BASEDIR_DATA + String.format(DataFormat, flist[testf[i]]);
-			offset = aggregateDataAsFloat(filename, testdata, testlabel, offset);
+//			offset = aggregateDataAsFloat(filename, testdata, testlabel, offset);
 //			System.out.println(filename+" -> "+offset);
 		}
 		
@@ -398,23 +442,14 @@ public class Classifier {
 	public static void trainSplitData() throws Exception {
 		LinkedHashMap<String, Object> params = new LinkedHashMap<String, Object>();
 		
-		params.put("eta", 0.5);
-		params.put("max_depth", 6);
-		params.put("gamma", 0.01);
-		params.put("subsample", 1);
-		params.put("max_delta_step", 0);
-		params.put("scale_pos_weight", 0.3);
-		params.put("min_child_weight", 0.5);
-		params.put("colsample_bytree", 0.8);
-
 		params.put("silent", 1);
 		params.put("objective", "binary:logistic");
 		params.put("eval_metric","auc");
 		params.put("tree_method", "approx");
-		params.put("seed", 2);
+
 		
 		// set round
-		int round = 4;
+		int round = 12;
 		int kSplit = 70;
 		int ifbreak = 0;
 		final String outfile = "./ressql.txt";
@@ -424,28 +459,46 @@ public class Classifier {
 		} catch (Exception e) {
 		}
 		
-		for (int fi = 11; fi < kSplit; fi++) {
+		for (int fi = 0; fi < kSplit; fi++) {
 			params.put("seed", fi);
 			
-			String trainf[] = { String.format(SplitFile, fi),
-					String.format(SplitVandFile, 1),
-					String.format(SplitVandFile, 2),
-					String.format(SplitVandFile, 3),
-					String.format(SplitVandFile, 4)
+			String trainf[] = {    ///////////////////////////////////////// train normal file
+					String.format(Split6File, fi)
 					};
+			
 			int trainsp[] = aggregateShape(trainf);
 			int trainrow=trainsp[0];
 			NumFeature=trainsp[1]  -1   ;  // no label -1
 			
-			int tfi = (fi+1)%kSplit;
-			String testf[] = { String.format(SplitFile, tfi),
+			String trainfv[] = {   ///////////////////////////////////////// train vandal file
+					String.format(SplitVandFile, 2),
+					String.format(SplitVandFile, 3),
 					String.format(SplitVandFile, 4),
-					String.format(SplitVandFile, 5) 
+					String.format(SplitVandFile, 5),
+					String.format(SplitVandFile, 6)
 					};
+			
+			int trainvsp[] = aggregateShape(trainfv);
+			int trainvrow=trainvsp[0];
+			
+			int tfi = (fi+1)%kSplit;
+			String testf[] = {    ///////////////////////////////////////// test normal file
+					String.format(SplitFile, tfi)
+					};
+			
 			int testsp[] = aggregateShape(testf); 
 			int testrow = testsp[0];
 			
-			int totalrow = trainrow;
+			String testfv[] = {   ///////////////////////////////////////// test vandal file
+					String.format(SplitVandFile, 1)
+					};
+			
+			int testvsp[] = aggregateShape(testfv); 
+			int testvrow = testvsp[0];
+			
+			int totalrow = trainrow+trainvrow;
+			testrow = testrow+testvrow;
+			
 			float[] traindata=new float[totalrow*NumFeature];
 			float[] trainlabel=new float[totalrow];
 			float[] testdata=new float[testrow*NumFeature];
@@ -454,13 +507,34 @@ public class Classifier {
 			int offset = 0;
 			for (int i = 0; i < trainf.length; i++) {
 				String filename = trainf[i];
-				offset = aggregateDataAsFloat(filename, traindata, trainlabel, offset);
+				offset = aggregateDataAsFloat(filename, traindata, trainlabel, offset,0);
+			}
+			for (int i = 0; i < trainfv.length; i++) {
+				String filename = trainfv[i];
+				offset = aggregateDataAsFloat(filename, traindata, trainlabel, offset,0);
 			}
 			offset=0;
 			for (int i = 0; i < testf.length; i++) {
 				String filename = testf[i];
-				offset = aggregateDataAsFloat(filename, testdata, testlabel, offset);
+				offset = aggregateDataAsFloat(filename, testdata, testlabel, offset,0);
 			}
+			for (int i = 0; i < testfv.length; i++) {
+				String filename = testfv[i];
+				offset = aggregateDataAsFloat(filename, testdata, testlabel, offset,0); // don't expand 
+			}
+			
+			System.out.println("\nrow:"+trainrow+ ' '+trainvrow+" "+totalrow+", "+testrow);
+			System.out.println("last 2 rec:");
+			for(int i=traindata.length-2*NumFeature;i<traindata.length-NumFeature;i++){
+				System.out.print(traindata[i]+" ");
+			}System.out.println(" ");
+			for(int i=traindata.length-NumFeature;i<traindata.length;i++){
+				System.out.print(traindata[i]+" ");
+			}
+			System.out.println();
+			System.out.print("last 2 label:");
+			System.out.print(trainlabel[trainlabel.length-2]+",");
+			System.out.println(trainlabel[trainlabel.length-1]);
 			
 			DMatrix trainMat = new DMatrix(traindata, traindata.length/NumFeature, NumFeature, MISSING);
 			trainMat.setLabel(trainlabel);
@@ -471,33 +545,41 @@ public class Classifier {
 			watches.put("train", trainMat);
 			watches.put("test", testMat);
 			
-			for(float eta = 0.552f; eta <=0.5521f; eta+=0.001f){
-				params.put("eta", eta);
-				for(int depth = 23; depth <=23; depth+=1 ){
-					params.put("max_depth", depth);
-					for(float  gamma= 0.0342f;  gamma<=0.03421f; gamma+=0.0001f){
-						params.put("gamma", gamma);
-						for(float  subsample= 0.9738f; subsample <= 0.97381f; subsample +=0.0001f){
+			for(float eta = 0.552f; eta <=0.552f; eta+=0.002f){
+				params.put("eta", eta);// 0.552
+				for(int depth = 9; depth <=9; depth+=1 ){
+					params.put("max_depth", depth); // 23
+					for(float  gamma= 0.0342f;  gamma<=0.0342f; gamma+=0.002f){
+						params.put("gamma", gamma);// 0.0342
+						for(float  subsample= 0.9733f; subsample <= 0.9733f; subsample +=0.0003f){
 							params.put("subsample", subsample);
 							for(float step = 0f;  step<=0f; step+=0.05f){
-								params.put("max_delta_step", step);
-								for(float  scale= 0.321f;  scale<= 0.3211f; scale +=0.001f){
-									params.put("scale_pos_weight",scale);
-									for(float  child= 0.8807f; child <= 0.8807f; child +=0.0001f){
-										params.put("min_child_weight", child);
-										for(float  colsample= 0.95f; colsample <=0.95f; colsample+=0.001f){
-											params.put("colsample_bytree", colsample);
+								params.put("max_delta_step", step);//0
+								for(float  scale= 0.294f;  scale<= 0.294f; scale +=0.003f){
+									params.put("scale_pos_weight",scale);// 0.321 
+									for(float  child= 0.875f; child <= 0.875f; child +=0.005f){
+										params.put("min_child_weight", child); //0.8802
+										for(float  colsample= 0.93f; colsample <=0.93f; colsample+=0.01f){
+											params.put("colsample_bytree", colsample);// 0.95
 											
 											System.out.println(fi+params.toString());
 
 											Booster booster = XGBoost.train(trainMat, params, round, watches, null, null);
 
+////											// save model to modelPath
+											File file = new File("./model");
+											if (!file.exists()) {
+												file.mkdirs();
+											}
+											String modelPath = String.format(ModelPath, fi);
+											booster.saveModel(modelPath);
+											
 											float[][] predicts2 = booster.predict(testMat);
 											
 											float acc = getAccuracy(testMat.getLabel(), predicts2);
 											System.out.println("Accuracy: "+acc+"\n----------------------------");
 											
-											writer.println(String.format("INSERT INTO wsdm ( fid,eta,max_depth,gamma,subsample,max_delta_step,scale_pos_weight,min_child_weight,colsample_bytree,accuracy ) VALUES ( %d,%.4f,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.6f );", 
+											writer.println(String.format("INSERT INTO wsdm6 ( fid,eta,max_depth,gamma,subsample,max_delta_step,scale_pos_weight,min_child_weight,colsample_bytree,accuracy ) VALUES ( %d,%.4f,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.6f );", 
 													fi,eta,depth,gamma,subsample,step,scale,child,colsample,acc));
 											
 											writer.flush();

@@ -2,6 +2,8 @@
 package org.wsdmcup17.demo;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.concurrent.BlockingQueue;
@@ -29,12 +31,24 @@ import ml.dmlc.xgboost4j.java.XGBoostError;
  */
 public class DummyRevisionClassifier implements MwRevisionProcessor {
 	
-	public static final String MODELPATH = "/home/yiran/wsdm/riberry/wsdm-classify/model/xgb.model";
+	public static final String MODELPATH = "./xgbmodel/xgb%d.model";
 	public static final float MISSING = -100.0f;
-
+	public static final int NumXgbModels = 70;
+	public static Booster xgblist[];
+	public static final int NumFeature =119 ;// num of features, xgboost
+	public static ArrayList<Integer> SkipFeatPos = new ArrayList<>(); // skip these features 1-119.
+	static{
+		SkipFeatPos.add(1); // id
+		SkipFeatPos.add(118); // ori label
+	}
+	private static float [] xgbfeatures=new float[NumFeature];
+	private static float [] xgbscores  =new float[NumXgbModels];
+	private final String xgbOutfile = "./xgbres.txt";
+	private PrintWriter xgbWriter = null;
+	
+	
 	private static final Logger
 		LOG = LoggerFactory.getLogger(DummyRevisionClassifier.class);
-	private Booster booster2 ;
 	
 	private static final String
 		LOG_MSG_STARTING = "Starting...",
@@ -52,26 +66,34 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 	private long lastLogTime;
 	private int numRevisions;
 	private int numRevisionsFromRegisteredUsers;
+	
+	
 	////////////////add by tuoyu start
 	private RandomForestTest RFclassifier;
 	///////////////end
 
-	public DummyRevisionClassifier(
-		BlockingQueue<CSVRecord> metaQueue, CSVPrinter resultPrinter
-	) {
+	public DummyRevisionClassifier(BlockingQueue<CSVRecord> metaQueue, CSVPrinter resultPrinter) {
 		this.resultPrinter = resultPrinter;
 		this.metadataQueue = metaQueue;
 		try {
-			booster2 = XGBoost.loadModel(MODELPATH);
-			System.out.println("model loaded ! ");
+			xgblist = new Booster[NumXgbModels];
+			for (int i = 0; i < NumXgbModels; i++) {
+				xgblist[i] = XGBoost.loadModel(String.format(MODELPATH, i));
+			}
+			System.out.println("xgb model loaded ! ");
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println("model fail \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ! ");
 		}
-		////////////////add by tuoyu start
-		RFclassifier=new RandomForestTest();
-		////////////////end
+		try {
+			xgbWriter = new PrintWriter(xgbOutfile, "UTF-8");
+		} catch (Exception e) {
+		}
+		//////////////// add by tuoyu start
+		RFclassifier = new RandomForestTest();
+		//////////////// end
 	}
+	
 
 	@Override
 	public void startRevisionProcessing(
@@ -100,105 +122,41 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		// This is where an actual classification based on  the revision and
 		// its associated metadata should happen. Instead, we just assign a
 		// score of 0.0, effectively classifying the revision as non-vandalism.
-		final int startpos = 0; // start from 13th feature
+		float score = 0;
 		
 		FeatureExtractor extractor=new FeatureExtractor(revision);
 		String extractedrecord=extractor.extractedrecord;
 //		System.out.println(extractedrecord);
-		String extractedrecord2= extractedrecord.replaceAll("\\[", "").replaceAll("\\]","").replaceAll(", ", "~");
-		String[] parts = extractedrecord2.split("~");
-		String featsvm = "0 ";
-		int flen = parts.length;
-		assert(flen==119);
 		
-		float[] featfloat = new float[flen];
-		
-		for(int i = startpos; i<parts.length; i++){
-			if(i==0||i==7||i==10||i==11){
-				featfloat[i]=MISSING; // didn't use this feature
-				continue;
-			}
-			String f = parts[i];
-			featsvm = featsvm+ (i+1) +":";
-			try
-			{
-			  featfloat[i]=Float.parseFloat(f);
-			  featsvm = featsvm+f+" ";
-			}
-			catch(NumberFormatException e)
-			{
-				String tmpf = "";
-				for(int j=0; j<f.length(); j++){
-					char c = f.charAt(j);
-					if (c >= '0' && c <= '9'){
-						featsvm = featsvm+ Character.toString( c);
-						tmpf = tmpf+ Character.toString( c);
-					}else{
-						int ascii = (int) c;
-						if (ascii<10) {
-							featsvm = featsvm+"00"+ascii;
-							tmpf = tmpf+"00"+ascii;
-						}else if (ascii<100) {
-							featsvm = featsvm+"0"+ascii;
-							tmpf = tmpf+"0"+ascii;
-						}else {
-							featsvm = featsvm+ascii;
-							tmpf = tmpf+ascii;
-						}
-					}
-				}
-				featsvm = featsvm+" ";
-				if (tmpf.length()>38) {
-					tmpf=tmpf.substring(0, 38);
-				}
-				try{
-					featfloat[i]=Float.parseFloat(tmpf);
-				}catch(NumberFormatException ee2){
-					featfloat[i]=0;
-				}
-			}
-		}
-//		System.out.println(featsvm);
-		float score = 0;
-//		for(int i =0; i<featfloat.length; i++){
-//			System.out.print(featfloat[i]+" ");
+		convertXgbFeatureToFloatArray( extractedrecord, xgbfeatures);
+//		for(int i =0; i<xgbfeatures.length; i++){
+//			System.out.print(xgbfeatures[i]+" ");
 //		}System.out.println("-----");
-
-		// reload model and data
-//		Booster booster2;
+		
+		// reload model and test
+		String xgbPrint = revision.getRevisionId()+" ";
 		try {
-//			booster2 = XGBoost.loadModel("./model/xgb.model");
-//			DMatrix testMat2 = new DMatrix("./model/dtest.buffer");
-			DMatrix testMat2 = new DMatrix(featfloat, 1, flen, MISSING);
-			
-			if (booster2 != null) {
-				float[][] predicts2 = booster2.predict(testMat2);
-				score = predicts2[0][0];
-			} else {
-				System.out.println("model null \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ! ");
+			DMatrix testMat2 = new DMatrix(xgbfeatures, 1, NumFeature, MISSING);
+			for (int i = 0; i < xgblist.length; i++) {
+				if (xgblist[i] != null) {
+					float[][] predicts2 = xgblist[i].predict(testMat2);
+					score = predicts2[0][0];
+					xgbscores[i] = score;
+					xgbPrint +=String.format("%.3f ", score) ;
+				} else {
+					System.out.println("model null \n ! ");
+				}
 			}
-			
+			xgbWriter.print(xgbPrint); xgbWriter.flush();
 		} catch (XGBoostError e) {
 			e.printStackTrace();
 		}
 		
-		if (score<=0.5) {
-			//score=0.0f;
-//			System.out.println(featfloat[0]);
-//			System.out.println(featfloat[1]);
-//			System.out.println(featfloat[4]);
-//			System.out.println(featfloat[5]);
-//			System.out.println(featfloat[117]);
-//			System.out.println(featfloat[118]);			
-//			System.out.println("------");
-
-		}else{
+		if (score>0.5) {
 			System.out.println("----vandalism !----"+score);
 			System.out.println(revision.getRevisionId());
-			System.out.println(featsvm);
 			System.out.println(extractedrecord);
 			System.out.println("--------");
-			score=1.0f;
 		}
 		
 		
@@ -213,9 +171,68 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		//System.out.println("reuslt="+RFreuslt);
 		//RFbinartresult is the output
 		/////////// end
-			
+	
+		xgbWriter.print( String.format("%.5f", RFreuslt)); 
 		
-		return score;
+		xgbWriter.print("\n"); 
+		xgbWriter.flush();
+		
+		return RFreuslt;
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	private int convertXgbFeatureToFloatArray(String extractedrecord, float[] featfloat){ // return success
+		int success = 1;
+		String extractedrecord2= extractedrecord.replaceAll("\\[", "").replaceAll("\\]","").replaceAll(", ", "~");
+		String[] parts = extractedrecord2.split("~");
+		int flen = parts.length;
+		assert(flen>=NumFeature);
+		for(int i = 0; i<NumFeature; i++){
+			if (SkipFeatPos.contains(i+1)) {
+				featfloat[i] = MISSING;
+				continue;
+			}
+			String f = parts[i];
+			try
+			{
+			  featfloat[i]=Float.parseFloat(f);
+			}
+			catch(NumberFormatException e)
+			{
+				String tmpf = "";
+				for(int j=0; j<f.length(); j++){
+					char c = f.charAt(j);
+					if (c >= '0' && c <= '9'){
+						tmpf = tmpf+ Character.toString( c);
+					}else{
+						int ascii = (int) c;
+						if (ascii<10) {
+							tmpf = tmpf+"00"+ascii;
+						}else if (ascii<100) {
+							tmpf = tmpf+"0"+ascii;
+						}else {
+							tmpf = tmpf+ascii;
+						}
+					}
+				}
+				if (tmpf.length()>38) {
+					tmpf=tmpf.substring(0, 38);
+				}
+				try{
+					featfloat[i]=Float.parseFloat(tmpf);
+				}catch(NumberFormatException ee2){
+					featfloat[i]=MISSING;
+				}
+			}
+		}
+		return success;
 	}
 
 	private void sendClassificationResult(

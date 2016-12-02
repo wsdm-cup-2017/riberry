@@ -37,7 +37,7 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 	
 	public static final String MODELPATH = "./xgbmodel/xgb%d.model";
 	public static final float MISSING = -100.0f;
-	public static final int NumXgbModels = 70;
+	public static final int NumXgbModels = 2;//70;
 	public static Booster xgblist[];
 	public static final int NumFeature =119 ;// num of features, xgboost
 	public static ArrayList<Integer> SkipFeatPos = new ArrayList<>(); // skip these features 1-119.
@@ -48,7 +48,7 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 	private static float [] xgbfeatures=new float[NumFeature];
 	private static float [] xgbscores  =new float[NumXgbModels];
 	private final String xgbOutfile = "./xgbres.txt";
-	private PrintWriter xgbWriter = null;
+//	private PrintWriter xgbWriter = null;
 	
 	
 	private static final Logger
@@ -85,18 +85,17 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		this.metadataQueue = metaQueue;
 		try {
 			xgblist = new Booster[NumXgbModels];
-			for (int i = 0; i < NumXgbModels; i++) {
-				xgblist[i] = XGBoost.loadModel(String.format(MODELPATH, i));
-			}
+			xgblist[0] = XGBoost.loadModel(String.format(MODELPATH, 9));
+			xgblist[1] = XGBoost.loadModel(String.format(MODELPATH, 37));
 			System.out.println("xgb model loaded ! ");
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println("model fail \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ! ");
 		}
-		try {
-			xgbWriter = new PrintWriter(xgbOutfile, "UTF-8");
-		} catch (Exception e) {
-		}
+//		try {
+//			xgbWriter = new PrintWriter(xgbOutfile, "UTF-8");
+//		} catch (Exception e) {
+//		}
 		//////////////// add by tuoyu start
 		RFclassifier = new RandomForestTest();
 		//////////////// end
@@ -145,58 +144,100 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 //		}System.out.println("-----");
 		
 		// reload model and test
-		String xgbPrint = revision.getRevisionId()+" ";
+//		String xgbPrint = revision.getRevisionId()+" ";
 		try {
 			DMatrix testMat2 = new DMatrix(xgbfeatures, 1, NumFeature, MISSING);
 			for (int i = 0; i < xgblist.length; i++) {
 				if (xgblist[i] != null) {
 					float[][] predicts2 = xgblist[i].predict(testMat2);
-					score = predicts2[0][0];
-					xgbscores[i] = score;
-					xgbPrint +=String.format("%.3f ", score) ;
+					xgbscores[i] = predicts2[0][0];
+//					xgbPrint +=String.format("%.3f ", score) ;
 				} else {
 					System.out.println("model null \n ! ");
 				}
 			}
-			xgbWriter.print(xgbPrint); xgbWriter.flush();
+//			xgbWriter.print(xgbPrint);
 		} catch (XGBoostError e) {
 			e.printStackTrace();
 		}
 		
-		if (score>0.5) {
-			System.out.println("----vandalism !----"+score);
-			System.out.println(revision.getRevisionId());
-			System.out.println(extractedrecord);
-			System.out.println("--------");
-		}
+//		if (score>0.8) {
+//			System.out.println("----vandalism !----"+score);
+//			System.out.println(revision.getRevisionId());
+//			System.out.println(extractedrecord);
+//			System.out.println("--------");
+//		}
 		
 		
 		////////////////add by tuoyu start
 		String extractedrecord3= extractedrecord.replaceAll("\\[", "").replaceAll("\\]","").replaceAll(", ", ",");
 		//System.out.println(extractedrecord2);
-		float RFreuslt=RFclassifier.getEvaluation(extractedrecord3);
-		float RFbinaryresult=0;
-		if(RFreuslt>0.5){
-			RFbinaryresult=1;
-		}
+		float rfreuslt0=RFclassifier.getEvaluation(extractedrecord3);
 		/////////// end
-		
 		//////////////////extend
 		extractedrecord3=extendfeature.appendAggregateFeatures(extractedrecord3);
-		float RFreuslt2=RFclassifier_extend.getEvaluation(extractedrecord3);
-		float RFbinaryresult2=0;
-		if(RFreuslt2>0.5){
-			RFbinaryresult2=1;
-		}
+		float rfreuslt1=RFclassifier_extend.getEvaluation(extractedrecord3);
 		//////////////////extend
+		
+		
+//		xgbWriter.print( String.format("%.3f ", xgbscores[0])); 
+//		xgbWriter.print( String.format("%.3f ", xgbscores[1])); 
+//		xgbWriter.print( String.format("%.3f ", rfreuslt0)); 
+//		xgbWriter.print( String.format("%.3f ", rfreuslt1)); 
+//		
+//		xgbWriter.print("\n"); 
+//		xgbWriter.flush();
+		
+		// judging:
+		float x0=xgbscores[0],x1=xgbscores[1],r0=rfreuslt0,r1=rfreuslt1;
+		if (x0>0.92) {
+			score = x0;
+			return score;
+		}else if (x0<0.5) {
+			score = x0;
+			return score;
+		}else{ // xgb09 not certain
 			
-		xgbWriter.print( String.format("%.4f ", RFreuslt)); 
-		xgbWriter.print( String.format("%.4f ", RFreuslt2)); 
+			if (x1>0.95) {
+				score = x1;
+				return score;
+			}else if (x1<0.51) {
+				score = x1;
+				return score;
+			}else { // xgb37 not certain
+				
+				if (r0>0.925) {
+					score = r0;
+					return score;
+				}else if (r0<0.52) {
+					score = r0;
+					return score;
+				}else { // rf0 not certain
+					
+					if (r1>0.9) {
+						score = r1;
+						return score;
+					}else if (r1<0.6) {
+						score = r1;
+						return score;
+					}else { // all not certain
+						
+						float xx = (x1+x0)/2.0f;
+						if (xx>=0.88) {
+							score = 0.95f; 
+						}else{
+							score = 0.1f; 
+						}
+						
+					}
+					
+				}
+				
+			}
+			
+		}
 		
-		xgbWriter.print("\n"); 
-		xgbWriter.flush();
-		
-		return RFreuslt;
+		return score;
 	}
 	
 	

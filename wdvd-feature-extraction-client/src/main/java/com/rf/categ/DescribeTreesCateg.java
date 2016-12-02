@@ -35,7 +35,7 @@ public class DescribeTreesCateg {
 							}ArrayList<String> DataPoint=new ArrayList<String>(Sp.size());
 							//System.out.println("size= "+Sp.size());
 							for(i=0;i<Sp.size()-1;i++){
-								if(!(i==5 || (i>=13 && i<=23) || (i>=32 && i<=40) || (i>=42 && i<=56) || (i>=72 && i<=78)|| i==119)){
+								if(!(i==5 || (i>=13 && i<=23) || (i>=32 && i<=40) || (i>=42 && i<=56) || (i>=72 && i<=78)|| i>=119)){
 									continue;
 								}
 								DataPoint.add(sCurrentLine.substring(Sp.get(i)+1, Sp.get(i+1)).trim());

@@ -16,6 +16,10 @@ import org.wikidata.wdtk.dumpfiles.MwRevision;
 import org.wikidata.wdtk.dumpfiles.MwRevisionProcessor;
 
 import com.rf.categ.RandomForestTest;
+//////////////////extend
+import com.rf.categ.AggregateFeatures;
+import com.rf.categ.RandomForestTest_extend;
+//////////////////extend
 
 import de.upb.wdqa.wdvd.FeatureExtractor;
 
@@ -71,6 +75,10 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 	////////////////add by tuoyu start
 	private RandomForestTest RFclassifier;
 	///////////////end
+	//////////////////extend
+	AggregateFeatures extendfeature;
+	private RandomForestTest_extend RFclassifier_extend;
+	//////////////////
 
 	public DummyRevisionClassifier(BlockingQueue<CSVRecord> metaQueue, CSVPrinter resultPrinter) {
 		this.resultPrinter = resultPrinter;
@@ -92,6 +100,9 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		//////////////// add by tuoyu start
 		RFclassifier = new RandomForestTest();
 		//////////////// end
+		//////////////////extend
+		RFclassifier_extend=new RandomForestTest_extend();
+		extendfeature=new AggregateFeatures("./");
 	}
 	
 
@@ -168,11 +179,19 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 		if(RFreuslt>0.5){
 			RFbinaryresult=1;
 		}
-		//System.out.println("reuslt="+RFreuslt);
-		//RFbinartresult is the output
 		/////////// end
-	
-		xgbWriter.print( String.format("%.5f", RFreuslt)); 
+		
+		//////////////////extend
+		extractedrecord3=extendfeature.appendAggregateFeatures(extractedrecord3);
+		float RFreuslt2=RFclassifier_extend.getEvaluation(extractedrecord3);
+		float RFbinaryresult2=0;
+		if(RFreuslt2>0.5){
+			RFbinaryresult2=1;
+		}
+		//////////////////extend
+			
+		xgbWriter.print( String.format("%.4f ", RFreuslt)); 
+		xgbWriter.print( String.format("%.4f ", RFreuslt2)); 
 		
 		xgbWriter.print("\n"); 
 		xgbWriter.flush();

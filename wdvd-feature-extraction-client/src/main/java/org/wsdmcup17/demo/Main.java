@@ -14,6 +14,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.PatternLayout;
+import org.apache.log4j.BasicConfigurator;
 
 /**
  * A simple program demonstrating how to connect to the WSDM Cup data server,
@@ -23,7 +24,7 @@ public class Main {
 	
 	private static final String
 		WSDM_CUP_2017_CLIENT_DEMO = "WSDM Cup 2017 client demo:",
-		OPT_SERVER = "s",
+		OPT_SERVER = "c",  // zyr "s"
 		OPT_SERVER_LONG = "server",
 		OPT_SERVER_DESC = "Data server address",
 		OPT_TOKEN = "t",
@@ -78,6 +79,7 @@ public class Main {
 	}
 	
 	private static void initLogger() {
+		BasicConfigurator.configure();
 		ConsoleAppender consoleAppender = new ConsoleAppender();
 		consoleAppender.setEncoding(UTF_8);
 		consoleAppender.setLayout(new PatternLayout(LOG_PATTERN));

@@ -26,7 +26,7 @@ import de.upb.wdqa.wdvd.FeatureExtractor;
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
 import ml.dmlc.xgboost4j.java.XGBoost;
-import ml.dmlc.xgboost4j.java.XGBoostError;
+//import ml.dmlc.xgboost4j.java.XGBoostError;
 
 /**
  * A Wikidata Toolkit-based revision processor that classifies all revisions
@@ -157,7 +157,7 @@ public class DummyRevisionClassifier implements MwRevisionProcessor {
 				}
 			}
 //			xgbWriter.print(xgbPrint);
-		} catch (XGBoostError e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		
